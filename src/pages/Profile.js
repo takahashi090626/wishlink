@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { db } from '../services/firebase';
+import { db, auth } from '../services/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
 
 const Profile = () => {
   const { user } = useAuth();
   const [profile, setProfile] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [userName, setUserName] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -33,6 +36,15 @@ const Profile = () => {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate('/login'); // ログアウト後にログインページにリダイレクト
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
   if (!profile) return <div>Loading...</div>;
 
   return (
@@ -55,14 +67,17 @@ const Profile = () => {
           </div>
         </div>
         {editMode ? (
-          <button onClick={handleSave} className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors">
+          <button onClick={handleSave} className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors mb-4">
             保存
           </button>
         ) : (
-          <button onClick={() => setEditMode(true)} className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors">
+          <button onClick={() => setEditMode(true)} className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors mb-4">
             プロフィールを編集
           </button>
         )}
+        <button onClick={handleLogout} className="w-full bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600 transition-colors">
+          ログアウト
+        </button>
       </div>
     </div>
   );
