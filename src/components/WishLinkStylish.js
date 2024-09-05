@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Gift, Users, Bell, PlusCircle, User, Search, LogOut } from 'lucide-react';
+import { Gift, Users, Bell, PlusCircle, User, Search, LogOut, Menu } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AddWishItem from './WishList/AddWishItem';
 import SearchAndFriendRequest from './Friends/SearchAndFriendRequest';
@@ -8,7 +8,6 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import FriendsList from './Friends/FriendsList';
 
-
 export default function WishLinkStylish({ children, refreshWishList }) {
     const navigate = useNavigate();
     const location = useLocation();
@@ -16,10 +15,11 @@ export default function WishLinkStylish({ children, refreshWishList }) {
     const [showSearch, setShowSearch] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [showFriendsList, setShowFriendsList] = useState(false);
+    const [showMenu, setShowMenu] = useState(false);  // メニュー表示用のstate
 
     const tabs = [
         { name: 'マイリスト', path: '/' },
-        { name: 'フレンドの欲しいもの', path: '/friendspost' },
+        { name: 'タイムライン', path: '/friendspost' },
         { name: 'プロフィール', path: '/profile' },
     ];
 
@@ -39,17 +39,14 @@ export default function WishLinkStylish({ children, refreshWishList }) {
 
     return (
         <div className="max-w-md mx-auto bg-gray-50 min-h-screen relative pb-16">
-            <header className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-6 rounded-b-3xl shadow-lg">
-                <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold">ウィッシュリンク</h1>
-                    <button 
-                        onClick={() => setShowSearch(true)} 
-                        className="text-white hover:text-indigo-200 transition-colors"
-                    >
-                        <Search size={24} />
-                    </button>
-                </div>
-                <p className="text-sm opacity-80 mt-2">あなたの欲しいものを、大切な人と共有しよう</p>
+            <header className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-6 rounded-b-3xl shadow-lg flex justify-between items-center">
+                <h1 className="text-3xl font-bold">wishlink</h1>
+                <button onClick={() => setShowSearch(true)} className="text-white hover:text-indigo-200 transition-colors">
+                    <Search size={24} />
+                </button>
+                <button onClick={() => setShowMenu(!showMenu)} className="text-white hover:text-indigo-200 transition-colors">
+                    <Menu size={24} /> {/* ハンバーガーメニューアイコン */}
+                </button>
             </header>
 
             <nav className="bg-white shadow-sm mt-4 mx-4 rounded-full">
@@ -75,6 +72,29 @@ export default function WishLinkStylish({ children, refreshWishList }) {
                 {children}
             </main>
 
+            {/* ハンバーガーメニューのポップアップ */}
+            {showMenu && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-start p-4">
+                    <div className="bg-white w-full max-w-xs rounded-lg shadow-lg p-6 mt-16">
+                        <ul className="space-y-4">
+                            <li><button onClick={() => navigate('/')} className="text-indigo-600 hover:text-indigo-800 flex items-center"><Gift size={24} className="mr-2" /> マイリスト</button></li>
+                            <li><button onClick={() => setShowFriendsList(true)} className="text-indigo-600 hover:text-indigo-800 flex items-center"><Users size={24} className="mr-2" /> フレンドリスト</button></li>
+                            <li><button onClick={() => setShowAddItem(true)} className="text-indigo-600 hover:text-indigo-800 flex items-center"><PlusCircle size={24} className="mr-2" /> 新しいアイテム作成</button></li>
+                            <li><button onClick={() => setShowNotifications(true)} className="text-indigo-600 hover:text-indigo-800 flex items-center"><Bell size={24} className="mr-2" /> 通知</button></li>
+                            <li><button onClick={() => navigate('/profile')} className="text-indigo-600 hover:text-indigo-800 flex items-center"><User size={24} className="mr-2" /> プロフィール</button></li>
+                            <li><button onClick={handleLogout} className="text-red-600 hover:text-red-800 flex items-center"><LogOut size={24} className="mr-2" /> ログアウト</button></li>
+                        </ul>
+                        <button 
+                            onClick={() => setShowMenu(false)} 
+                            className="mt-4 w-full bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
+                        >
+                            閉じる
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* その他のモーダルやポップアップ */}
             {showAddItem && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white p-6 rounded-lg w-full max-w-md">
@@ -99,27 +119,19 @@ export default function WishLinkStylish({ children, refreshWishList }) {
                 </div>
             )}
 
-            {location.pathname === '/profile' && (
-                <button
-                    onClick={handleLogout}
-                    className="fixed bottom-20 right-4 bg-red-500 text-white p-2 rounded-full shadow-lg hover:bg-red-600 transition-colors"
-                >
-                    <LogOut size={24} />
-                </button>
+            {showFriendsList && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white p-6 rounded-lg w-full max-w-md">
+                        <FriendsList />
+                        <button 
+                            onClick={() => setShowFriendsList(false)} 
+                            className="mt-4 w-full bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
+                        >
+                            閉じる
+                        </button>
+                    </div>
+                </div>
             )}
-             {showFriendsList && (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white p-6 rounded-lg w-full max-w-md">
-        <FriendsList />
-        <button 
-          onClick={() => setShowFriendsList(false)} 
-          className="mt-4 w-full bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
-        >
-          閉じる
-        </button>
-      </div>
-    </div>
-  )}
 
             {showNotifications && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -134,16 +146,6 @@ export default function WishLinkStylish({ children, refreshWishList }) {
                     </div>
                 </div>
             )}
-
-<nav className="fixed bottom-0 inset-x-0 bg-white shadow-lg rounded-t-3xl">
-    <ul className="flex justify-around p-4">
-      <li><button onClick={() => navigate('/')} className="text-indigo-600 hover:text-indigo-800 transition-colors"><Gift size={28} /></button></li>
-      <li><button onClick={() => setShowFriendsList(true)} className="text-indigo-600 hover:text-indigo-800 transition-colors"><Users size={28} /></button></li>
-      <li><button onClick={() => setShowAddItem(true)} className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 rounded-full shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 -mt-8"><PlusCircle size={28} /></button></li>
-      <li><button onClick={() => setShowNotifications(true)} className="text-indigo-600 hover:text-indigo-800 transition-colors"><Bell size={28} /></button></li>
-      <li><button onClick={() => navigate('/profile')} className="text-indigo-600 hover:text-indigo-800 transition-colors"><User size={28} /></button></li>
-    </ul>
-  </nav>
         </div>
     );
 }
