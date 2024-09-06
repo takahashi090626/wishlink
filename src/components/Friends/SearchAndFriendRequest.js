@@ -1,23 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, addDoc, getDoc, doc } from "firebase/firestore";
 import { db, auth } from '../../services/firebase';
 
 const SearchAndFriendRequest = ({ onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [friends, setFriends] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
+
+  useEffect(() => {
+    const fetchFriendsAndRequests = async () => {
+      if (!auth.currentUser) return;
+
+      // フレンドリストを取得
+      const friendsQuery = query(collection(db, "friends"), where("userId", "==", auth.currentUser.uid));
+      const friendsSnapshot = await getDocs(friendsQuery);
+      setFriends(friendsSnapshot.docs.map(doc => doc.data().friendId));
+
+      // 保留中のリクエストを取得
+      const requestsQuery = query(
+        collection(db, "friendRequests"),
+        where("senderId", "==", auth.currentUser.uid),
+        where("status", "==", "pending")
+      );
+      const requestsSnapshot = await getDocs(requestsQuery);
+      setPendingRequests(requestsSnapshot.docs.map(doc => doc.data().receiverId));
+    };
+
+    fetchFriendsAndRequests();
+  }, []);
 
   const handleSearch = async (e) => {
     e.preventDefault();
     const q = query(collection(db, "users"), where("userName", ">=", searchTerm), where("userName", "<=", searchTerm + '\uf8ff'));
     const querySnapshot = await getDocs(q);
-    const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    const results = querySnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
       .filter(user => user.id !== auth.currentUser.uid);
     setSearchResults(results);
   };
 
   const sendFriendRequest = async (userId, userName) => {
+    if (friends.includes(userId)) {
+      alert('既にフレンドです');
+      return;
+    }
+
+    if (pendingRequests.includes(userId)) {
+      alert('既にフレンドリクエストを送信済みです');
+      return;
+    }
+
     try {
-      // フレンドリクエストを送信
       await addDoc(collection(db, "friendRequests"), {
         senderId: auth.currentUser.uid,
         receiverId: userId,
@@ -25,11 +59,9 @@ const SearchAndFriendRequest = ({ onClose }) => {
         createdAt: new Date()
       });
 
-      // 送信者の情報を取得
       const senderDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
       const senderData = senderDoc.data();
 
-      // 通知を作成
       await addDoc(collection(db, "notifications"), {
         receiverId: userId,
         senderId: auth.currentUser.uid,
@@ -39,6 +71,7 @@ const SearchAndFriendRequest = ({ onClose }) => {
         type: 'friendRequest'
       });
 
+      setPendingRequests([...pendingRequests, userId]);
       alert('フレンド申請を送信しました');
     } catch (error) {
       console.error("Error sending friend request:", error);

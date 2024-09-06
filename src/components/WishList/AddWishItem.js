@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../services/firebase';
 
 const AddWishItem = ({ onAdd }) => {
@@ -10,20 +10,28 @@ const AddWishItem = ({ onAdd }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const newItem = {
-      name,
-      price: Number(price),
-      url: url || null,
-      isPublic,
-      userId: auth.currentUser.uid,
-      createdAt: new Date().toISOString()  // ISO文字列として保存
-    };
-    const docRef = await addDoc(collection(db, "wishItems"), newItem);
-    onAdd({ id: docRef.id, ...newItem });
-    setName('');
-    setPrice('');
-    setUrl('');
-    setIsPublic(false);
+    if (!name || !price) return;
+
+    try {
+      const newItem = {
+        name,
+        price: Number(price),
+        url,
+        isPublic,
+        userId: auth.currentUser.uid,
+        createdAt: serverTimestamp()
+      };
+
+      const docRef = await addDoc(collection(db, 'wishItems'), newItem);
+      onAdd({ id: docRef.id, ...newItem, createdAt: new Date() });  // 即時反映のために現在の日時を使用
+
+      setName('');
+      setPrice('');
+      setUrl('');
+      setIsPublic(false);
+    } catch (error) {
+      console.error("Error adding wish item: ", error);
+    }
   };
 
   return (

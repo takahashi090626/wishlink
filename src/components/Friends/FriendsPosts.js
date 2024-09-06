@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, getDoc, doc } from "firebase/firestore";
+import { collection, query, where, getDocs, getDoc, doc, onSnapshot } from "firebase/firestore";
 import { db, auth } from '../../services/firebase';
 import WishItem from '../WishList/WishItem';
 
@@ -7,26 +7,28 @@ const FriendsPosts = () => {
   const [posts, setPosts] = useState([]);
 
   useEffect(() => {
+    if (!auth.currentUser) return;
+
     const fetchFriendsPosts = async () => {
-      if (auth.currentUser) {
-        // Get friend IDs
-        const friendsQuery = query(collection(db, "friends"), where("userId", "==", auth.currentUser.uid));
-        const friendsSnapshot = await getDocs(friendsQuery);
-        const friendIds = friendsSnapshot.docs.map(doc => doc.data().friendId);
+      // フレンドのIDを取得
+      const friendsQuery = query(collection(db, "friends"), where("userId", "==", auth.currentUser.uid));
+      const friendsSnapshot = await getDocs(friendsQuery);
+      const friendIds = friendsSnapshot.docs.map(doc => doc.data().friendId);
 
-        if (friendIds.length === 0) {
-          setPosts([]);
-          return;
-        }
+      if (friendIds.length === 0) {
+        setPosts([]);
+        return;
+      }
 
-        // Get public posts from friends
-        const postsQuery = query(
-          collection(db, "wishItems"),
-          where("userId", "in", friendIds),
-          where("isPublic", "==", true)
-        );
-        const postsSnapshot = await getDocs(postsQuery);
-        const postsData = await Promise.all(postsSnapshot.docs.map(async postDoc => {
+      // フレンドの公開投稿を取得
+      const postsQuery = query(
+        collection(db, "wishItems"),
+        where("userId", "in", friendIds),
+        where("isPublic", "==", true)
+      );
+
+      const unsubscribe = onSnapshot(postsQuery, async (snapshot) => {
+        const postsData = await Promise.all(snapshot.docs.map(async postDoc => {
           const postData = postDoc.data();
           const userDoc = await getDoc(doc(db, "users", postData.userId));
           const userData = userDoc.data();
@@ -38,7 +40,9 @@ const FriendsPosts = () => {
           };
         }));
         setPosts(postsData);
-      }
+      });
+
+      return () => unsubscribe();
     };
 
     fetchFriendsPosts();
