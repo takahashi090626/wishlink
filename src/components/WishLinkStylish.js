@@ -7,15 +7,12 @@ import NotificationCenter from './Notifications/NotificationCenter';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../services/firebase';
 import FriendsList from './Friends/FriendsList';
-import { collection, query, where, getDocs, updateDoc, deleteDoc, doc, orderBy } from "firebase/firestore";
-import WishItem from './WishList/WishItem';
+import { collection, query, where, onSnapshot,updateDoc,deleteDoc, orderBy, getDocs, getDoc, doc } from "firebase/firestore";
 import Home from '../pages/Home';
-import Profile from '../pages/Profile';  // パスが正しいことを確認してください
-
-
+import Profile from '../pages/Profile';
 import FriendsPosts from './Friends/FriendsPosts';
 
-export default function WishLinkStylish({ children }) {
+export default function WishLinkStylish() {
     const navigate = useNavigate();
     const location = useLocation();
     const [showAddItem, setShowAddItem] = useState(false);
@@ -24,6 +21,8 @@ export default function WishLinkStylish({ children }) {
     const [showFriendsList, setShowFriendsList] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [wishList, setWishList] = useState([]);
+    const [friendsPosts, setFriendsPosts] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     const tabs = [
         { name: 'マイリスト', path: '/' },
@@ -32,26 +31,74 @@ export default function WishLinkStylish({ children }) {
     ];
 
     useEffect(() => {
-        const fetchWishItems = async () => {
-            if (auth.currentUser) {
-                const q = query(
-                    collection(db, "wishItems"), 
-                    where("userId", "==", auth.currentUser.uid),
+        if (!auth.currentUser) return;
+
+        setIsLoading(true);
+
+        const wishListQuery = query(
+            collection(db, "wishItems"), 
+            where("userId", "==", auth.currentUser.uid),
+            orderBy("createdAt", "desc")
+        );
+
+        const unsubscribeWishList = onSnapshot(wishListQuery, (snapshot) => {
+            const updatedWishList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setWishList(updatedWishList);
+            setIsLoading(false);
+        });
+
+        let unsubscribeFriendsPosts = () => {};
+
+        const fetchFriendsPosts = async () => {
+            const friendsQuery = query(collection(db, "friends"), where("userId", "==", auth.currentUser.uid));
+            const friendsSnapshot = await getDocs(friendsQuery);
+            const friendIds = friendsSnapshot.docs.map(doc => doc.data().friendId);
+
+            if (friendIds.length > 0) {
+                const friendsPostsQuery = query(
+                    collection(db, "wishItems"),
+                    where("userId", "in", friendIds),
+                    where("isPublic", "==", true),
                     orderBy("createdAt", "desc")
                 );
-                const querySnapshot = await getDocs(q);
-                setWishList(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+                unsubscribeFriendsPosts = onSnapshot(friendsPostsQuery, async (snapshot) => {
+                    const postsData = await Promise.all(snapshot.docs.map(async postDoc => {
+                        const postData = postDoc.data();
+                        const userDoc = await getDoc(doc(db, "users", postData.userId));
+                        const userData = userDoc.data();
+                        return { 
+                            id: postDoc.id, 
+                            ...postData, 
+                            userName: userData.userName,
+                            userAvatar: userData.avatar
+                        };
+                    }));
+                    setFriendsPosts(postsData);
+                });
             }
         };
 
-        fetchWishItems();
+        fetchFriendsPosts();
+
+        return () => {
+            unsubscribeWishList();
+            unsubscribeFriendsPosts();
+        };
     }, []);
 
-    const handleAddItem = useCallback((newItem) => {
+    const handleAddItem = useCallback(() => {
         setShowAddItem(false);
-        setWishList((prevList) => [newItem, ...prevList]);
     }, []);
 
+    const handleLogout = useCallback(async () => {
+        try {
+            await signOut(auth);
+            navigate('/login');
+        } catch (error) {
+            console.error("Logout error:", error);
+        }
+    }, [navigate]);
     const handleTogglePublic = useCallback(async (itemId) => {
         const itemToUpdate = wishList.find(item => item.id === itemId);
         if (itemToUpdate) {
@@ -70,14 +117,9 @@ export default function WishLinkStylish({ children }) {
         setWishList((prevList) => prevList.filter(item => item.id !== itemId));
     }, []);
 
-    const handleLogout = useCallback(async () => {
-        try {
-            await signOut(auth);
-            navigate('/login');
-        } catch (error) {
-            console.error("Logout error:", error);
-        }
-    }, [navigate]);
+    if (isLoading) {
+        return <div>Loading...</div>;
+    }
 
     return (
         <div className="max-w-md mx-auto bg-gray-50 min-h-screen relative pb-16">
@@ -111,9 +153,11 @@ export default function WishLinkStylish({ children }) {
             </nav>
 
             <main className="p-6">
-                {location.pathname === '/' && <Home />}
-                {location.pathname === '/friendspost' && <FriendsPosts />}
-                {location.pathname === '/profile' && <Profile />}  {/* この行を確認 */}
+                {location.pathname === '/' && <Home wishList={wishList}
+                                                    onTogglePublic={handleTogglePublic}
+                                                    onDeleteItem={handleDeleteItem} />}
+                {location.pathname === '/friendspost' && <FriendsPosts posts={friendsPosts} />}
+                {location.pathname === '/profile' && <Profile />}
             </main>
 
             <button 
@@ -189,13 +233,7 @@ export default function WishLinkStylish({ children }) {
             {showSearch && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white p-6 rounded-lg w-full max-w-md">
-                        <SearchAndFriendRequest />
-                        <button 
-                            onClick={() => setShowSearch(false)} 
-                            className="mt-4 w-full bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
-                        >
-                            閉じる
-                        </button>
+                        <SearchAndFriendRequest onClose={() => setShowSearch(false)} />
                     </div>
                 </div>
             )}
