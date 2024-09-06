@@ -32,7 +32,7 @@ const Home = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold mb-6">マイウィッシュリスト</h1>
+      <h1 className="text-3xl font-bold mb-6">欲しいものリスト</h1>
       <div className="space-y-4">
         {wishItems.map(item => (
           <WishItem 

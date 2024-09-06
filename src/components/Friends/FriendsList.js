@@ -12,7 +12,7 @@ const FriendsList = () => {
         const querySnapshot = await getDocs(q);
         const friendPromises = querySnapshot.docs.map(async (doc) => {
           const friendDoc = await getDocs(doc(db, "users", doc.data().friendId));
-          return { id: friendDoc.id, ...friendDoc.data() };
+          return { id: friendDoc.id, ...friendDoc.data() }; 
         });
         const friendsData = await Promise.all(friendPromises);
         setFriends(friendsData);
@@ -21,7 +21,7 @@ const FriendsList = () => {
 
     fetchFriends();
   }, []);
-
+  
   return (
     <div>
       <h2 className="text-2xl font-bold mb-4">フレンド一覧</h2>

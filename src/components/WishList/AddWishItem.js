@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { collection, addDoc } from "firebase/firestore";
+import { addDoc, collection } from "firebase/firestore";
 import { db, auth } from '../../services/firebase';
 
 const AddWishItem = ({ onAdd }) => {
@@ -9,22 +9,21 @@ const AddWishItem = ({ onAdd }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
+    if (auth.currentUser) {
       const newItem = {
         name,
         price: Number(price),
         url: url || null,
+        createdAt: new Date().toISOString(),
         userId: auth.currentUser.uid,
-        createdAt: new Date(),
+        likes: 0,
         isPublic: false
       };
-      await addDoc(collection(db, "wishItems"), newItem);
-      onAdd();
+      const docRef = await addDoc(collection(db, "wishItems"), newItem);
+      onAdd({ id: docRef.id, ...newItem });
       setName('');
       setPrice('');
       setUrl('');
-    } catch (error) {
-      console.error("Error adding wish item: ", error);
     }
   };
 
@@ -36,7 +35,7 @@ const AddWishItem = ({ onAdd }) => {
         onChange={(e) => setName(e.target.value)}
         placeholder="アイテム名"
         required
-        className="w-full px-3 py-2 border rounded-md"
+        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
       />
       <input
         type="number"
@@ -44,14 +43,14 @@ const AddWishItem = ({ onAdd }) => {
         onChange={(e) => setPrice(e.target.value)}
         placeholder="価格"
         required
-        className="w-full px-3 py-2 border rounded-md"
+        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
       />
       <input
         type="url"
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         placeholder="商品URL (オプション)"
-        className="w-full px-3 py-2 border rounded-md"
+        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
       />
       <button
         type="submit"

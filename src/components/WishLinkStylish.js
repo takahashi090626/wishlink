@@ -1,21 +1,24 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Gift, Users, Bell, PlusCircle, User, Search, LogOut, Menu } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AddWishItem from './WishList/AddWishItem';
 import SearchAndFriendRequest from './Friends/SearchAndFriendRequest';
 import NotificationCenter from './Notifications/NotificationCenter';
 import { signOut } from 'firebase/auth';
-import { auth } from '../services/firebase';
+import { auth, db } from '../services/firebase';
 import FriendsList from './Friends/FriendsList';
+import { collection, query, where, getDocs, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import WishItem from './WishList/WishItem';
 
-export default function WishLinkStylish({ children, refreshWishList }) {
+export default function WishLinkStylish({ children }) {
     const navigate = useNavigate();
     const location = useLocation();
     const [showAddItem, setShowAddItem] = useState(false);
     const [showSearch, setShowSearch] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [showFriendsList, setShowFriendsList] = useState(false);
-    const [showMenu, setShowMenu] = useState(false);  // メニュー表示用のstate
+    const [showMenu, setShowMenu] = useState(false);
+    const [wishList, setWishList] = useState([]);
 
     const tabs = [
         { name: 'マイリスト', path: '/' },
@@ -23,10 +26,40 @@ export default function WishLinkStylish({ children, refreshWishList }) {
         { name: 'プロフィール', path: '/profile' },
     ];
 
-    const handleAddItem = useCallback(() => {
+    useEffect(() => {
+        const fetchWishItems = async () => {
+            if (auth.currentUser) {
+                const q = query(collection(db, "wishItems"), where("userId", "==", auth.currentUser.uid));
+                const querySnapshot = await getDocs(q);
+                setWishList(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            }
+        };
+
+        fetchWishItems();
+    }, []);
+
+    const handleAddItem = useCallback((newItem) => {
         setShowAddItem(false);
-        refreshWishList();
-    }, [refreshWishList]);
+        setWishList((prevList) => [...prevList, newItem]);
+    }, []);
+
+    const handleTogglePublic = useCallback(async (itemId) => {
+        const itemToUpdate = wishList.find(item => item.id === itemId);
+        if (itemToUpdate) {
+            const newPublicState = !itemToUpdate.isPublic;
+            await updateDoc(doc(db, "wishItems", itemId), { isPublic: newPublicState });
+            setWishList((prevList) =>
+                prevList.map(item =>
+                    item.id === itemId ? { ...item, isPublic: newPublicState } : item
+                )
+            );
+        }
+    }, [wishList]);
+
+    const handleDeleteItem = useCallback(async (itemId) => {
+        await deleteDoc(doc(db, "wishItems", itemId));
+        setWishList((prevList) => prevList.filter(item => item.id !== itemId));
+    }, []);
 
     const handleLogout = useCallback(async () => {
         try {
@@ -45,7 +78,7 @@ export default function WishLinkStylish({ children, refreshWishList }) {
                     <Search size={24} />
                 </button>
                 <button onClick={() => setShowMenu(!showMenu)} className="text-white hover:text-indigo-200 transition-colors">
-                    <Menu size={24} /> {/* ハンバーガーメニューアイコン */}
+                    <Menu size={24} />
                 </button>
             </header>
 
@@ -70,31 +103,25 @@ export default function WishLinkStylish({ children, refreshWishList }) {
 
             <main className="p-6">
                 {children}
+                <div className="space-y-4">
+                    {wishList.map((item) => (
+                        <WishItem
+                            key={item.id}
+                            item={item}
+                            onTogglePublic={handleTogglePublic}
+                            onDelete={handleDeleteItem}
+                        />
+                    ))}
+                </div>
             </main>
 
-            {/* ハンバーガーメニューのポップアップ */}
-            {showMenu && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-start p-4">
-                    <div className="bg-white w-full max-w-xs rounded-lg shadow-lg p-6 mt-16">
-                        <ul className="space-y-4">
-                            <li><button onClick={() => navigate('/')} className="text-indigo-600 hover:text-indigo-800 flex items-center"><Gift size={24} className="mr-2" /> マイリスト</button></li>
-                            <li><button onClick={() => setShowFriendsList(true)} className="text-indigo-600 hover:text-indigo-800 flex items-center"><Users size={24} className="mr-2" /> フレンドリスト</button></li>
-                            <li><button onClick={() => setShowAddItem(true)} className="text-indigo-600 hover:text-indigo-800 flex items-center"><PlusCircle size={24} className="mr-2" /> 新しいアイテム作成</button></li>
-                            <li><button onClick={() => setShowNotifications(true)} className="text-indigo-600 hover:text-indigo-800 flex items-center"><Bell size={24} className="mr-2" /> 通知</button></li>
-                            <li><button onClick={() => navigate('/profile')} className="text-indigo-600 hover:text-indigo-800 flex items-center"><User size={24} className="mr-2" /> プロフィール</button></li>
-                            <li><button onClick={handleLogout} className="text-red-600 hover:text-red-800 flex items-center"><LogOut size={24} className="mr-2" /> ログアウト</button></li>
-                        </ul>
-                        <button 
-                            onClick={() => setShowMenu(false)} 
-                            className="mt-4 w-full bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
-                        >
-                            閉じる
-                        </button>
-                    </div>
-                </div>
-            )}
+            <button 
+                onClick={() => setShowAddItem(true)} 
+                className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 rounded-full shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 z-50"
+            >
+                <PlusCircle size={28} />
+            </button>
 
-            {/* その他のモーダルやポップアップ */}
             {showAddItem && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white p-6 rounded-lg w-full max-w-md">
@@ -110,11 +137,22 @@ export default function WishLinkStylish({ children, refreshWishList }) {
                 </div>
             )}
 
-            {showSearch && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white p-6 rounded-lg w-full max-w-md">
-                        <h2 className="text-xl font-bold mb-4">検索</h2>
-                        <SearchAndFriendRequest onClose={() => setShowSearch(false)} />
+            {showMenu && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-start p-4">
+                    <div className="bg-white w-full max-w-xs rounded-lg shadow-lg p-6 mt-16">
+                        <ul className="space-y-4">
+                            <li><button onClick={() => navigate('/')} className="text-indigo-600 hover:text-indigo-800 flex items-center"><Gift size={24} className="mr-2" /> マイリスト</button></li>
+                            <li><button onClick={() => setShowFriendsList(true)} className="text-indigo-600 hover:text-indigo-800 flex items-center"><Users size={24} className="mr-2" /> フレンドリスト</button></li>
+                            <li><button onClick={() => setShowNotifications(true)} className="text-indigo-600 hover:text-indigo-800 flex items-center"><Bell size={24} className="mr-2" /> 通知</button></li>
+                            <li><button onClick={() => navigate('/profile')} className="text-indigo-600 hover:text-indigo-800 flex items-center"><User size={24} className="mr-2" /> プロフィール</button></li>
+                            <li><button onClick={handleLogout} className="text-red-600 hover:text-red-800 flex items-center"><LogOut size={24} className="mr-2" /> ログアウト</button></li>
+                        </ul>
+                        <button 
+                            onClick={() => setShowMenu(false)} 
+                            className="mt-4 w-full bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
+                        >
+                            閉じる
+                        </button>
                     </div>
                 </div>
             )}
@@ -139,6 +177,20 @@ export default function WishLinkStylish({ children, refreshWishList }) {
                         <NotificationCenter />
                         <button 
                             onClick={() => setShowNotifications(false)} 
+                            className="mt-4 w-full bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
+                        >
+                            閉じる
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {showSearch && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white p-6 rounded-lg w-full max-w-md">
+                        <SearchAndFriendRequest />
+                        <button 
+                            onClick={() => setShowSearch(false)} 
                             className="mt-4 w-full bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
                         >
                             閉じる

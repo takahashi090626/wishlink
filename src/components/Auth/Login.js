@@ -29,7 +29,6 @@ const Login = () => {
       setError('ログインに失敗しました。ユーザーIDとパスワードを確認してください。');
     }
   };
-
   return (
     <form onSubmit={handleSubmit} className="mt-8 space-y-6">
       {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -58,5 +57,4 @@ const Login = () => {
     </form>
   );
 };
-
 export default Login;
