@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { collection, query, where, getDocs, addDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, getDoc, doc } from "firebase/firestore";
 import { db, auth } from '../../services/firebase';
 
 const SearchAndFriendRequest = ({ onClose }) => {
@@ -10,13 +10,14 @@ const SearchAndFriendRequest = ({ onClose }) => {
     e.preventDefault();
     const q = query(collection(db, "users"), where("userName", ">=", searchTerm), where("userName", "<=", searchTerm + '\uf8ff'));
     const querySnapshot = await getDocs(q);
-    const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(user => user.id !== auth.currentUser.uid);
     setSearchResults(results);
   };
 
-  const sendFriendRequest = async (userId) => {
+  const sendFriendRequest = async (userId, userName) => {
     try {
-      // フレンド申請を送信
+      // フレンドリクエストを送信
       await addDoc(collection(db, "friendRequests"), {
         senderId: auth.currentUser.uid,
         receiverId: userId,
@@ -24,10 +25,15 @@ const SearchAndFriendRequest = ({ onClose }) => {
         createdAt: new Date()
       });
 
+      // 送信者の情報を取得
+      const senderDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+      const senderData = senderDoc.data();
+
       // 通知を作成
       await addDoc(collection(db, "notifications"), {
         receiverId: userId,
-        content: `${auth.currentUser.displayName}さんからフレンド申請が届いています。`,
+        senderId: auth.currentUser.uid,
+        content: `${senderData.userName}さんからフレンド申請が届いています。`,
         createdAt: new Date(),
         read: false,
         type: 'friendRequest'
@@ -64,7 +70,7 @@ const SearchAndFriendRequest = ({ onClose }) => {
             <li key={user.id} className="flex justify-between items-center bg-gray-100 p-2 rounded">
               <span>{user.userName}</span>
               <button
-                onClick={() => sendFriendRequest(user.id)}
+                onClick={() => sendFriendRequest(user.id, user.userName)}
                 className="bg-indigo-600 text-white py-1 px-2 rounded text-sm hover:bg-indigo-700 transition-colors"
               >
                 フレンド申請

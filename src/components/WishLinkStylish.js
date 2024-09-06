@@ -7,8 +7,13 @@ import NotificationCenter from './Notifications/NotificationCenter';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../services/firebase';
 import FriendsList from './Friends/FriendsList';
-import { collection, query, where, getDocs, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, query, where, getDocs, updateDoc, deleteDoc, doc, orderBy } from "firebase/firestore";
 import WishItem from './WishList/WishItem';
+import Home from '../pages/Home';
+import Profile from '../pages/Profile';  // パスが正しいことを確認してください
+
+
+import FriendsPosts from './Friends/FriendsPosts';
 
 export default function WishLinkStylish({ children }) {
     const navigate = useNavigate();
@@ -29,7 +34,11 @@ export default function WishLinkStylish({ children }) {
     useEffect(() => {
         const fetchWishItems = async () => {
             if (auth.currentUser) {
-                const q = query(collection(db, "wishItems"), where("userId", "==", auth.currentUser.uid));
+                const q = query(
+                    collection(db, "wishItems"), 
+                    where("userId", "==", auth.currentUser.uid),
+                    orderBy("createdAt", "desc")
+                );
                 const querySnapshot = await getDocs(q);
                 setWishList(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
             }
@@ -40,7 +49,7 @@ export default function WishLinkStylish({ children }) {
 
     const handleAddItem = useCallback((newItem) => {
         setShowAddItem(false);
-        setWishList((prevList) => [...prevList, newItem]);
+        setWishList((prevList) => [newItem, ...prevList]);
     }, []);
 
     const handleTogglePublic = useCallback(async (itemId) => {
@@ -102,17 +111,9 @@ export default function WishLinkStylish({ children }) {
             </nav>
 
             <main className="p-6">
-                {children}
-                <div className="space-y-4">
-                    {wishList.map((item) => (
-                        <WishItem
-                            key={item.id}
-                            item={item}
-                            onTogglePublic={handleTogglePublic}
-                            onDelete={handleDeleteItem}
-                        />
-                    ))}
-                </div>
+                {location.pathname === '/' && <Home />}
+                {location.pathname === '/friendspost' && <FriendsPosts />}
+                {location.pathname === '/profile' && <Profile />}  {/* この行を確認 */}
             </main>
 
             <button 

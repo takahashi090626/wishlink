@@ -2,6 +2,17 @@ import React from 'react';
 import { Trash2, Globe, Lock } from 'lucide-react';
 
 const WishItem = ({ item, onTogglePublic, onDelete }) => {
+  const formatDate = (dateValue) => {
+    if (dateValue instanceof Date) {
+      return dateValue.toLocaleDateString();
+    } else if (typeof dateValue === 'object' && dateValue.toDate) {
+      return dateValue.toDate().toLocaleDateString();
+    } else if (typeof dateValue === 'string') {
+      return new Date(dateValue).toLocaleDateString();
+    }
+    return 'Invalid Date';
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-md overflow-hidden">
       <div className="p-4">
@@ -12,14 +23,18 @@ const WishItem = ({ item, onTogglePublic, onDelete }) => {
             商品リンク
           </a>
         )}
-        <p className="text-xs text-gray-400 mb-3">{new Date(item.createdAt).toLocaleDateString()}</p>
+        <p className="text-xs text-gray-400 mb-3">
+          {item.createdAt && formatDate(item.createdAt)}
+        </p>
         <div className="flex justify-between items-center">
           <button onClick={() => onTogglePublic(item.id)} className="text-gray-500 hover:text-gray-700 transition-colors">
             {item.isPublic ? <Globe size={20} /> : <Lock size={20} />}
           </button>
-          <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-600 transition-colors">
-            <Trash2 size={20} />
-          </button>
+          {onDelete && (
+            <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-600 transition-colors">
+              <Trash2 size={20} />
+            </button>
+          )}
         </div>
       </div>
     </div>

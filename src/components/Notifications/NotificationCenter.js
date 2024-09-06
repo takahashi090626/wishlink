@@ -1,8 +1,7 @@
+// NotificationCenter.js
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, updateDoc, doc, deleteDoc, addDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, updateDoc, doc, deleteDoc, addDoc, getDocs, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from '../../services/firebase';
-import { getDocs } from "firebase/firestore";
-
 
 const NotificationCenter = () => {
   const [notifications, setNotifications] = useState([]);
@@ -28,31 +27,64 @@ const NotificationCenter = () => {
   }, []);
 
   const handleFriendRequest = async (notificationId, senderId, accept) => {
-    if (accept) {
-      // フレンドリストに追加
-      await addDoc(collection(db, "friends"), {
-        userId: auth.currentUser.uid,
-        friendId: senderId
-      });
-    }
-
-    // 通知を削除
-    await deleteDoc(doc(db, "notifications", notificationId));
-
-    // フレンドリクエストを更新または削除
-    const requestQuery = query(
-      collection(db, "friendRequests"),
-      where("senderId", "==", senderId),
-      where("receiverId", "==", auth.currentUser.uid)
-    );
-    const requestSnapshot = await getDocs(requestQuery);
-    if (!requestSnapshot.empty) {
-      const requestDoc = requestSnapshot.docs[0];
+    try {
       if (accept) {
-        await updateDoc(doc(db, "friendRequests", requestDoc.id), { status: 'accepted' });
+        // フレンドリストに追加 (双方向の関係を作成)
+        await setDoc(doc(db, "friends", `${auth.currentUser.uid}_${senderId}`), {
+          userId: auth.currentUser.uid,
+          friendId: senderId
+        });
+        await setDoc(doc(db, "friends", `${senderId}_${auth.currentUser.uid}`), {
+          userId: senderId,
+          friendId: auth.currentUser.uid
+        });
+
+        // フレンドリクエストのステータスを 'accepted' に更新
+        const requestQuery = query(
+          collection(db, "friendRequests"),
+          where("senderId", "==", senderId),
+          where("receiverId", "==", auth.currentUser.uid)
+        );
+        const requestSnapshot = await getDocs(requestQuery);
+        if (!requestSnapshot.empty) {
+          const requestDoc = requestSnapshot.docs[0];
+          await updateDoc(doc(db, "friendRequests", requestDoc.id), { status: 'accepted' });
+        }
+
+        // 送信者に通知を送る
+        const currentUserDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+        const currentUserData = currentUserDoc.data();
+        await addDoc(collection(db, "notifications"), {
+          receiverId: senderId,
+          senderId: auth.currentUser.uid,
+          content: `${currentUserData.userName}さんがフレンド申請を承認しました。`,
+          createdAt: new Date(),
+          read: false,
+          type: 'friendRequestAccepted'
+        });
       } else {
-        await deleteDoc(doc(db, "friendRequests", requestDoc.id));
+        // フレンドリクエストを削除
+        const requestQuery = query(
+          collection(db, "friendRequests"),
+          where("senderId", "==", senderId),
+          where("receiverId", "==", auth.currentUser.uid)
+        );
+        const requestSnapshot = await getDocs(requestQuery);
+        if (!requestSnapshot.empty) {
+          const requestDoc = requestSnapshot.docs[0];
+          await deleteDoc(doc(db, "friendRequests", requestDoc.id));
+        }
       }
+
+      // 通知を削除
+      await deleteDoc(doc(db, "notifications", notificationId));
+
+      // 通知リストを更新
+      setNotifications(notifications.filter(notif => notif.id !== notificationId));
+
+    } catch (error) {
+      console.error("Error handling friend request:", error);
+      alert('フレンドリクエストの処理中にエラーが発生しました');
     }
   };
 
